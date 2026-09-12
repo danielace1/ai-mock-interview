@@ -61,49 +61,66 @@ const RecordingAns = ({ mockInterviewQns, activeQnIndex, interviewData }) => {
   const updateUserAns = async () => {
     console.log("User Answer: ", userAns);
 
-    setLoading(true);
-    const feedbackPrompt =
-      "Question: " +
-      mockInterviewQns[activeQnIndex]?.Question +
-      ", User Answer: " +
-      userAns +
-      ". Based on the question and user answer, please provide a rating and feedback for improvement. " +
-      "Provide your response in JSON format with 'rating' and 'feedback' fields. " +
-      "Keep the feedback brief (3-5 lines) and focus on areas of improvement.";
+    const currentQuestion = mockInterviewQns[activeQnIndex]?.question;
+    const currentAnswer = mockInterviewQns[activeQnIndex]?.answer;
 
-    const result = await chatSession.sendMessage(feedbackPrompt);
+    console.log("Answer:", currentAnswer);
 
-    const mockJsonResponse = result.response
-      .text()
-      .replace("```json", "")
-      .replace("```", "");
-
-    const jsonResponse = JSON.parse(mockJsonResponse);
-
-    const resp = await db.insert(UserAnswer).values({
-      mockIdRef: interviewData?.mockId,
-      question: mockInterviewQns[activeQnIndex]?.Question,
-      correctAns: mockInterviewQns[activeQnIndex]?.Answer,
-      userAns: userAns,
-      feedback: jsonResponse?.feedback,
-      rating: jsonResponse?.rating,
-      userEmail: user?.primaryEmailAddress?.emailAddress,
-      createdAt: moment().format("DD-MM-YYYY"),
-    });
-
-    if (resp) {
-      toast(
-        <div className="flex items-center">
-          <CheckCircleIcon className="text-green-500 mr-1 size-4" /> Your answer
-          has been saved successfully.
-        </div>
-      );
-      setUserAns("");
-      setResults([]);
+    if (!currentQuestion) {
+      toast.error("Question not found. Please try again.");
+      return;
     }
 
-    setResults([]);
-    setLoading(false);
+    setLoading(true);
+
+    try {
+      const feedbackPrompt =
+        "Question: " +
+        currentQuestion +
+        ", User Answer: " +
+        userAns +
+        ". Based on the question and user answer, please provide a rating and feedback for improvement. " +
+        "Provide your response in JSON format with 'rating' and 'feedback' fields. " +
+        "Keep the feedback brief (3-5 lines) and focus on areas of improvement.";
+
+      const result = await chatSession.sendMessage(feedbackPrompt);
+
+      const mockJsonResponse = result.response
+        .text()
+        .replace("```json", "")
+        .replace("```", "")
+        .trim();
+
+      const jsonResponse = JSON.parse(mockJsonResponse);
+
+      const resp = await db.insert(UserAnswer).values({
+        mockIdRef: interviewData?.mockId,
+        question: currentQuestion,
+        correctAns: currentAnswer,
+        userAns: userAns,
+        feedback: jsonResponse?.feedback,
+        rating: jsonResponse?.rating,
+        userEmail: user?.primaryEmailAddress?.emailAddress,
+        createdAt: moment().format("DD-MM-YYYY"),
+      });
+
+      if (resp) {
+        toast(
+          <div className="flex items-center">
+            <CheckCircleIcon className="text-green-500 mr-1 size-4" />
+            Your answer has been saved successfully.
+          </div>,
+        );
+
+        setUserAns("");
+        setResults([]);
+      }
+    } catch (error) {
+      console.error("Error saving answer:", error);
+      toast.error("Failed to save your answer.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
